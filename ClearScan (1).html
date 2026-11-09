@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PersonalScan</title>
+<style>
+:root{--bg:#f6f5f1;--surface:#fff;--ink:#1c1b19;--muted:#6b6962;--accent:#0f766e;--on-accent:#fff;--line:#e3e1da;--stage:#2a2926;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121211;--surface:#1c1b19;--ink:#f1efe9;--muted:#a09d93;--accent:#2dd4bf;--on-accent:#06201d;--line:#2e2c29;--stage:#0b0b0a}}
+:root[data-theme="dark"]{--bg:#121211;--surface:#1c1b19;--ink:#f1efe9;--muted:#a09d93;--accent:#2dd4bf;--on-accent:#06201d;--line:#2e2c29;--stage:#0b0b0a}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+*{box-sizing:border-box}
+body{margin:0;height:100%;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{padding:14px 18px 10px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+h1{margin:0;font-size:22px;letter-spacing:-.02em}
+.sub{color:var(--muted);font-size:13px}
+main{flex:1;min-height:0;overflow:auto;padding:4px 18px 18px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.card img{display:block;width:100%;aspect-ratio:3/4;object-fit:contain;background:var(--stage)}
+.card .row{display:flex;align-items:center;gap:2px;padding:4px 6px}
+.card .row span{flex:1;font-size:13px;color:var(--muted);padding-left:4px}
+.empty{margin:12vh auto 0;max-width:340px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);font-size:18px;margin-bottom:6px}
+.bar{display:flex;gap:10px;padding:10px 14px;border-top:1px solid var(--line);background:var(--surface)}
+button{font:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:10px 14px;cursor:pointer}
+button.p{background:var(--accent);color:var(--on-accent);border-color:transparent;font-weight:600}
+button.ic{padding:4px 8px;border:0;background:none;font-size:15px}
+.bar button{flex:1}
+button:disabled{opacity:.45;cursor:default}
+#editor{flex:1;min-height:0;display:flex;flex-direction:column}
+#stage{flex:1;min-height:0;background:var(--stage);display:flex;align-items:center;justify-content:center;overflow:hidden}
+#cv{touch-action:none;display:block}
+.chips{display:flex;gap:8px;padding:10px 14px 0;background:var(--surface);overflow-x:auto}
+.chips button{white-space:nowrap;border-radius:99px;padding:7px 14px}
+.chips button.on{background:var(--accent);color:var(--on-accent);border-color:transparent}
+.hint{padding:8px 14px 0;font-size:13px;color:var(--muted);background:var(--surface);text-align:center}
+#camera{flex:1;min-height:0;display:flex;flex-direction:column;background:#000}
+#vid{flex:1;min-height:0;width:100%;object-fit:contain;background:#000}
+.camctl{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;background:#000;color:#fff}
+.camctl button{background:none;border:0;color:#fff;font-size:15px;min-width:76px}
+#shutter{width:68px;height:68px;min-width:68px;border-radius:50%;background:#fff;border:5px solid #000;box-shadow:0 0 0 3px #fff;padding:0}
+#shutter:active{transform:scale(.92)}
+#shots{text-align:center;color:#ddd;font-size:13px;padding:8px;background:#000;min-height:34px}
+[hidden]{display:none!important}
+#toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:99px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;text-align:center}
+#toast.on{opacity:1}
+</style>
+</head>
+<body>
+<header><h1>PersonalScan</h1><span class="sub">No ads, no accounts. Your scans never leave this device.</span></header>
+
+<main id="home"></main>
+<div class="bar" id="homebar">
+  <button class="p" id="scan">📷 Scan</button>
+  <button id="imp">🖼 Import</button>
+  <button id="pdf" disabled>⬇ PDF</button>
+</div>
+
+<section id="editor" hidden>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <div class="chips" id="chips" hidden>
+    <button data-f="original">Original</button><button data-f="enhance">Enhanced</button><button data-f="gray">Grayscale</button><button data-f="bw">Black &amp; white</button>
+  </div>
+  <div class="hint" id="hint">Drag the corners to fit the page edges</div>
+  <div class="bar" id="cropbar">
+    <button id="cancel">Cancel</button><button id="rot" aria-label="Rotate" title="Rotate">⟳</button><button id="auto">✨ Auto</button><button class="p" id="next">Next →</button>
+  </div>
+  <div class="bar" id="filtbar" hidden>
+    <button id="back">← Back</button><button class="p" id="save">Save page</button>
+  </div>
+</section>
+
+<section id="camera" hidden>
+  <video id="vid" playsinline muted autoplay></video>
+  <div id="shots"></div>
+  <div class="camctl">
+    <button id="camDone">Done</button>
+    <button id="shutter" aria-label="Take photo"></button>
+    <button id="flip">⟲ Flip</button>
+  </div>
+</section>
+
+<input id="camIn" type="file" accept="image/*" capture="environment" hidden>
+<input id="impIn" type="file" accept="image/*" multiple hidden>
+<div id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const mk=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c};
+let pages=[],queue=[],cur=null,stage='crop',drag=-1,K=1;
+const cv=$('#cv'),g=cv.getContext('2d');
+
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),2800)}
+
+/* ---------- image loading ---------- */
+async function loadImg(file){
+  let im;
+  try{im=await createImageBitmap(file,{imageOrientation:'from-image'})}
+  catch(e){im=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(file)})}
+  const w=im.width,h=im.height,s=Math.min(1,2200/Math.max(w,h));
+  const c=mk(Math.round(w*s),Math.round(h*s));
+  c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+  return c;
+}
+async function enqueue(files){
+  queue.push(...files);
+  if(!cur) await nextInQueue();
+}
+async function nextInQueue(){
+  cur=null;
+  if(!queue.length){show(camMode&&camStream?'camera':'home');return}
+  try{
+    const item=queue.shift(),src=item instanceof HTMLCanvasElement?item:await loadImg(item),m=.05;
+    cur={src,idx:null,filter:'enhance',corners:[[src.width*m,src.height*m],[src.width*(1-m),src.height*m],[src.width*(1-m),src.height*(1-m)],[src.width*m,src.height*(1-m)]]};
+    const f=detectCorners(src);if(f)cur.corners=f;
+    openEditor();
+    if(f)toast('Page edges found. Drag the corners to adjust');
+  }catch(e){toast('That image couldn’t be opened');nextInQueue()}
+}
+
+/* ---------- views ---------- */
+function show(v){
+  $('#home').hidden=$('#homebar').hidden=v!=='home';
+  $('#editor').hidden=v!=='editor';
+  $('#camera').hidden=v!=='camera';
+  if(v==='home')renderHome();
+}
+function openEditor(){stage='crop';show('editor');setStage();draw()}
+function setStage(){
+  const c=stage==='crop';
+  $('#cropbar').hidden=!c;$('#filtbar').hidden=c;$('#chips').hidden=c;
+  $('#hint').textContent=c?'Drag the corners to fit the page edges':'Choose a look';
+  document.querySelectorAll('#chips button').forEach(b=>b.classList.toggle('on',b.dataset.f===cur.filter));
+}
+
+/* ---------- crop editor ---------- */
+function order(p){
+  const s=p.map(q=>q[0]+q[1]),d=p.map(q=>q[0]-q[1]);
+  return [p[s.indexOf(Math.min(...s))],p[d.indexOf(Math.max(...d))],p[s.indexOf(Math.max(...s))],p[d.indexOf(Math.min(...d))]];
+}
+function draw(){
+  const st=$('#stage'),im=stage==='crop'?cur.src:cur.out;
+  K=Math.min(st.clientWidth/im.width,st.clientHeight/im.height);
+  const cw=Math.max(1,Math.round(im.width*K)),ch=Math.max(1,Math.round(im.height*K)),r=devicePixelRatio||1;
+  cv.style.width=cw+'px';cv.style.height=ch+'px';cv.width=cw*r;cv.height=ch*r;
+  g.setTransform(r,0,0,r,0,0);g.imageSmoothingQuality='high';g.drawImage(im,0,0,cw,ch);
+  if(stage!=='crop')return;
+  const p=cur.corners.map(([x,y])=>[x*K,y*K]);
+  const path=()=>{p.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.closePath()};
+  g.beginPath();g.rect(0,0,cw,ch);path();g.fillStyle='rgba(0,0,0,.45)';g.fill('evenodd');
+  g.beginPath();path();g.strokeStyle='#2dd4bf';g.lineWidth=2;g.stroke();
+  p.forEach(([x,y])=>{g.beginPath();g.arc(x,y,12,0,7);g.fillStyle='#2dd4bf';g.fill();g.strokeStyle='#fff';g.lineWidth=2;g.stroke()});
+}
+cv.addEventListener('pointerdown',e=>{
+  if(stage!=='crop')return;
+  const b=cv.getBoundingClientRect(),x=e.clientX-b.left,y=e.clientY-b.top;let m=1e9;drag=-1;
+  cur.corners.forEach(([px,py],i)=>{const d=Math.hypot(px*K-x,py*K-y);if(d<m&&d<56){m=d;drag=i}});
+  if(drag>=0)cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove',e=>{
+  if(drag<0)return;
+  const b=cv.getBoundingClientRect(),s=cur.src;
+  cur.corners[drag]=[Math.min(s.width,Math.max(0,(e.clientX-b.left)/K)),Math.min(s.height,Math.max(0,(e.clientY-b.top)/K))];
+  draw();
+});
+['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t,()=>{drag=-1}));
+addEventListener('resize',()=>{if(cur&&!$('#editor').hidden)draw()});
+
+$('#rot').onclick=()=>{
+  const s=cur.src,r=mk(s.height,s.width),c=r.getContext('2d');
+  c.translate(s.height,0);c.rotate(Math.PI/2);c.drawImage(s,0,0);
+  cur.corners=order(cur.corners.map(([x,y])=>[s.height-y,x]));cur.src=r;draw();
+};
+$('#cancel').onclick=()=>{cur=null;nextInQueue()};
+$('#next').onclick=()=>{
+  const q=order(cur.corners);
+  if(!cur.warped||cur.warpKey!==JSON.stringify(q)+cur.src.width){cur.warped=warp(cur.src,q);cur.warpKey=JSON.stringify(q)+cur.src.width}
+  cur.out=applyFilter(cur.warped,cur.filter);stage='filter';setStage();draw();
+};
+$('#back').onclick=()=>{stage='crop';setStage();draw()};
+$('#chips').onclick=e=>{
+  const f=e.target.dataset.f;if(!f)return;
+  cur.filter=f;cur.out=applyFilter(cur.warped,f);setStage();draw();
+};
+$('#save').onclick=()=>{
+  const p={src:cur.src,corners:cur.corners,filter:cur.filter,out:cur.out};
+  if(cur.idx==null)pages.push(p);else pages[cur.idx]=p;
+  cur=null;nextInQueue();
+};
+
+/* ---------- perspective warp ---------- */
+function warp(src,q){
+  const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+  let W=Math.max(dist(q[0],q[1]),dist(q[3],q[2])),H=Math.max(dist(q[0],q[3]),dist(q[1],q[2]));
+  const s=Math.min(1,1800/Math.max(W,H));W=Math.max(2,Math.round(W*s));H=Math.max(2,Math.round(H*s));
+  const [[x0,y0],[x1,y1],[x2,y2],[x3,y3]]=q;
+  const dx1=x1-x2,dx2=x3-x2,dx3=x0-x1+x2-x3,dy1=y1-y2,dy2=y3-y2,dy3=y0-y1+y2-y3;
+  let A,B,D,E,G=0,Hh=0;const C=x0,F=y0;
+  if(Math.abs(dx3)<1e-9&&Math.abs(dy3)<1e-9){A=x1-x0;B=x3-x0;D=y1-y0;E=y3-y0}
+  else{const den=dx1*dy2-dx2*dy1;G=(dx3*dy2-dx2*dy3)/den;Hh=(dx1*dy3-dx3*dy1)/den;A=x1-x0+G*x1;B=x3-x0+Hh*x3;D=y1-y0+G*y1;E=y3-y0+Hh*y3}
+  const sw=src.width,sh=src.height,sd=src.getContext('2d').getImageData(0,0,sw,sh).data;
+  const out=mk(W,H),oc=out.getContext('2d'),od=oc.createImageData(W,H),o=od.data;
+  for(let y=0;y<H;y++){const v=(y+.5)/H;
+    for(let x=0;x<W;x++){
+      const u=(x+.5)/W,den=G*u+Hh*v+1,sx=(A*u+B*v+C)/den-.5,sy=(D*u+E*v+F)/den-.5;
+      let ix=Math.floor(sx),iy=Math.floor(sy);const fx=sx-ix,fy=sy-iy;
+      ix=Math.min(sw-2,Math.max(0,ix));iy=Math.min(sh-2,Math.max(0,iy));
+      const i00=(iy*sw+ix)*4,i10=i00+4,i01=i00+sw*4,i11=i01+4,k=(y*W+x)*4;
+      const wx=Math.min(1,Math.max(0,fx)),wy=Math.min(1,Math.max(0,fy));
+      for(let c=0;c<3;c++){o[k+c]=(sd[i00+c]*(1-wx)+sd[i10+c]*wx)*(1-wy)+(sd[i01+c]*(1-wx)+sd[i11+c]*wx)*wy}
+      o[k+3]=255;
+    }}
+  oc.putImageData(od,0,0);return out;
+}
+
+/* ---------- filters ---------- */
+function applyFilter(src,f){
+  const w=src.width,h=src.height,out=mk(w,h),c=out.getContext('2d');
+  c.drawImage(src,0,0);if(f==='original')return out;
+  const id=c.getImageData(0,0,w,h),d=id.data;
+  // flatten lighting: divide by a heavily blurred copy (removes shadows, whitens paper)
+  const sm=mk(Math.max(8,w>>4),Math.max(8,h>>4)),sc=sm.getContext('2d');
+  sc.imageSmoothingQuality='high';sc.drawImage(src,0,0,sm.width,sm.height);
+  const bg=mk(w,h),bc=bg.getContext('2d');bc.imageSmoothingQuality='high';bc.drawImage(sm,0,0,w,h);
+  const b=bc.getImageData(0,0,w,h).data;
+  for(let i=0;i<d.length;i+=4)for(let k=0;k<3;k++){
+    const v=Math.min(1,d[i+k]/Math.max(b[i+k],1)*1.08);d[i+k]=255*Math.pow(v,1.6);
+  }
+  if(f!=='enhance'){
+    const L=new Uint8Array(w*h);
+    for(let i=0,j=0;i<d.length;i+=4,j++)L[j]=.299*d[i]+.587*d[i+1]+.114*d[i+2];
+    if(f==='gray'){for(let i=0,j=0;i<d.length;i+=4,j++)d[i]=d[i+1]=d[i+2]=L[j]}
+    else{
+      const W1=w+1,ii=new Uint32Array(W1*(h+1));
+      for(let y=0;y<h;y++){let row=0;for(let x=0;x<w;x++){row+=L[y*w+x];ii[(y+1)*W1+x+1]=ii[y*W1+x+1]+row}}
+      const r=Math.max(8,w>>5);
+      for(let y=0;y<h;y++){const ya=Math.max(0,y-r),yb=Math.min(h,y+r+1);
+        for(let x=0;x<w;x++){
+          const xa=Math.max(0,x-r),xb=Math.min(w,x+r+1);
+          const m=(ii[yb*W1+xb]-ii[ya*W1+xb]-ii[yb*W1+xa]+ii[ya*W1+xa])/((xb-xa)*(yb-ya));
+          const k=(y*w+x)*4,v=L[y*w+x]<m*.88?0:255;d[k]=d[k+1]=d[k+2]=v;
+        }}
+    }
+  }
+  c.putImageData(id,0,0);return out;
+}
+
+/* ---------- home / page list ---------- */
+function renderHome(){
+  const h=$('#home');$('#pdf').disabled=!pages.length;
+  if(!pages.length){h.innerHTML='<div class="empty"><b>Ready when you are</b>Tap Scan to photograph a document, or Import to pick photos you already have. Add as many pages as you like, then export one PDF.</div>';return}
+  h.innerHTML='<div class="grid">'+pages.map((p,i)=>{
+    const t=mk(240,Math.round(240*p.out.height/p.out.width));t.getContext('2d').drawImage(p.out,0,0,t.width,t.height);
+    return `<div class="card"><img alt="Page ${i+1}" src="${t.toDataURL('image/jpeg',.6)}"><div class="row"><span>Page ${i+1}</span>
+    <button class="ic" data-i="${i}" data-a="L" title="Move earlier" ${i?'':'disabled'}>◀</button>
+    <button class="ic" data-i="${i}" data-a="R" title="Move later" ${i<pages.length-1?'':'disabled'}>▶</button>
+    <button class="ic" data-i="${i}" data-a="E" title="Edit">✎</button>
+    <button class="ic" data-i="${i}" data-a="D" title="Delete">✕</button></div></div>`}).join('')+'</div>';
+}
+$('#home').onclick=e=>{
+  const b=e.target.closest('button');if(!b)return;
+  const i=+b.dataset.i,a=b.dataset.a;
+  if(a==='D')pages.splice(i,1);
+  else if(a==='L'||a==='R'){const j=a==='L'?i-1:i+1;[pages[i],pages[j]]=[pages[j],pages[i]]}
+  else if(a==='E'){const p=pages[i];cur={src:p.src,corners:p.corners.map(q=>[...q]),filter:p.filter,idx:i};openEditor();return}
+  renderHome();
+};
+
+/* ---------- PDF writer (JPEG pages, no libraries) ---------- */
+function buildPDF(imgs){
+  const enc=new TextEncoder(),parts=[],offs=[];let len=0;
+  const put=x=>{const b=typeof x==='string'?enc.encode(x):x;parts.push(b);len+=b.length};
+  const obj=(n,fn)=>{offs[n]=len;put(n+' 0 obj\n');fn();put('\nendobj\n')};
+  const N=imgs.length;
+  put('%PDF-1.4\n');
+  obj(1,()=>put('<< /Type /Catalog /Pages 2 0 R >>'));
+  obj(2,()=>put(`<< /Type /Pages /Count ${N} /Kids [${imgs.map((_,i)=>(5+3*i)+' 0 R').join(' ')}] >>`));
+  imgs.forEach((m,i)=>{
+    const pw=595,ph=Math.round(595*m.h/m.w),cs=`q ${pw} 0 0 ${ph} 0 0 cm /Im0 Do Q`;
+    obj(3+3*i,()=>{put(`<< /Type /XObject /Subtype /Image /Width ${m.w} /Height ${m.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${m.jpg.length} >>\nstream\n`);put(m.jpg);put('\nendstream')});
+    obj(4+3*i,()=>put(`<< /Length ${cs.length} >>\nstream\n${cs}\nendstream`));
+    obj(5+3*i,()=>put(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Contents ${4+3*i} 0 R /Resources << /XObject << /Im0 ${3+3*i} 0 R >> >> >>`));
+  });
+  const total=2+3*N,x=len;
+  put(`xref\n0 ${total+1}\n0000000000 65535 f \n`);
+  for(let n=1;n<=total;n++)put(String(offs[n]).padStart(10,'0')+' 00000 n \n');
+  put(`trailer\n<< /Size ${total+1} /Root 1 0 R >>\nstartxref\n${x}\n%%EOF`);
+  return new Blob(parts,{type:'application/pdf'});
+}
+async function exportPDF(){
+  if(!pages.length)return;
+  const btn=$('#pdf');btn.disabled=true;btn.textContent='Building…';
+  try{
+    const imgs=[];
+    for(const p of pages){
+      const bl=await new Promise(r=>p.out.toBlob(r,'image/jpeg',.85));
+      imgs.push({jpg:new Uint8Array(await bl.arrayBuffer()),w:p.out.width,h:p.out.height});
+    }
+    const blob=buildPDF(imgs),d=new Date(),z=n=>String(n).padStart(2,'0');
+    const name=`scan-${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}.pdf`;
+    let dl=null;try{if(typeof claude!=='undefined')dl=await claude.use('downloads')}catch(e){}
+    if(dl){
+      try{await dl.save({filename:name,data:blob});toast('PDF saved')}
+      catch(e){if(!e||e.code!=='declined')toast('Couldn’t save the PDF')}
+    }else{
+      const f=new File([blob],name,{type:'application/pdf'});
+      if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f]})}catch(e){}}
+      else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click()}
+    }
+  }catch(e){toast('Something went wrong building the PDF')}
+  btn.textContent='⬇ PDF';btn.disabled=!pages.length;
+}
+
+/* ---------- wiring ---------- */
+/* ---------- auto-crop: find the page as the largest bright (or dark) blob ---------- */
+function detectCorners(src){
+  const s=Math.min(1,320/Math.max(src.width,src.height)),w=Math.max(8,Math.round(src.width*s)),h=Math.max(8,Math.round(src.height*s));
+  const sm=mk(w,h),sc=sm.getContext('2d');sc.imageSmoothingQuality='high';sc.drawImage(src,0,0,w,h);
+  const px=sc.getImageData(0,0,w,h).data,N=w*h,L=new Float32Array(N),B=new Float32Array(N);
+  for(let i=0;i<N;i++)L[i]=.299*px[i*4]+.587*px[i*4+1]+.114*px[i*4+2];
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    let t=0,n=0;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=x+dx,yy=y+dy;if(xx>=0&&xx<w&&yy>=0&&yy<h){t+=L[yy*w+xx];n++}}
+    B[y*w+x]=t/n;
+  }
+  const hist=new Array(256).fill(0);for(let i=0;i<N;i++)hist[B[i]|0]++;
+  let sum=0;for(let i=0;i<256;i++)sum+=i*hist[i];
+  let wB=0,sB=0,best=-1,thr=128;
+  for(let t=0;t<256;t++){
+    wB+=hist[t];if(!wB)continue;const wF=N-wB;if(!wF)break;
+    sB+=t*hist[t];const mB=sB/wB,mF=(sum-sB)/wF,v=wB*wF*(mB-mF)*(mB-mF);
+    if(v>best){best=v;thr=t}
+  }
+  let bestQ=null,bestScore=0;
+  for(const bright of [true,false]){
+    const fg=new Uint8Array(N),seen=new Uint8Array(N),stack=new Int32Array(N);
+    for(let i=0;i<N;i++)fg[i]=(bright?B[i]>thr:B[i]<=thr)?1:0;
+    let top=null;
+    for(let i0=0;i0<N;i0++){
+      if(!fg[i0]||seen[i0])continue;
+      let sp=0,area=0,mnS=1e9,mxS=-1e9,mnD=1e9,mxD=-1e9,pTL,pBR,pTR,pBL,minX=w,maxX=0,minY=h,maxY=0;
+      stack[sp++]=i0;seen[i0]=1;
+      while(sp){
+        const i=stack[--sp],x=i%w,y=(i-x)/w,a=x+y,d=x-y;area++;
+        if(a<mnS){mnS=a;pTL=[x,y]}if(a>mxS){mxS=a;pBR=[x,y]}
+        if(d>mxD){mxD=d;pTR=[x,y]}if(d<mnD){mnD=d;pBL=[x,y]}
+        if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y;
+        if(x>0&&fg[i-1]&&!seen[i-1]){seen[i-1]=1;stack[sp++]=i-1}
+        if(x<w-1&&fg[i+1]&&!seen[i+1]){seen[i+1]=1;stack[sp++]=i+1}
+        if(y>0&&fg[i-w]&&!seen[i-w]){seen[i-w]=1;stack[sp++]=i-w}
+        if(y<h-1&&fg[i+w]&&!seen[i+w]){seen[i+w]=1;stack[sp++]=i+w}
+      }
+      if(!top||area>top.area)top={area,q:[pTL,pTR,pBR,pBL],minX,maxX,minY,maxY};
+    }
+    if(!top)continue;
+    const touch=(top.minX<=1)+(top.maxX>=w-2)+(top.minY<=1)+(top.maxY>=h-2);
+    if(touch>=4)continue;
+    const q=top.q,qa=Math.abs(q.reduce((t,p,i)=>{const n=q[(i+1)%4];return t+p[0]*n[1]-n[0]*p[1]},0))/2;
+    const frac=top.area/N;
+    if(frac<.12||qa/N>.97||qa<1)continue;
+    const rect=top.area/qa;if(rect<.7||rect>1.05)continue;
+    if(frac*rect>bestScore){bestScore=frac*rect;bestQ=q}
+  }
+  if(!bestQ)return null;
+  return order(bestQ.map(([x,y])=>[Math.min(src.width,Math.max(0,(x+.5)*src.width/w)),Math.min(src.height,Math.max(0,(y+.5)*src.height/h))]));
+}
+$('#auto').onclick=()=>{
+  const f=detectCorners(cur.src);
+  if(f){cur.corners=f;draw();toast('Page edges found')}
+  else toast('Couldn’t find clear edges. Try a darker surface under the page');
+};
+
+/* live camera */
+let camStream=null,camMode=false,facing='environment',shots=0;
+const vid=$('#vid');
+function stopStream(){if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null}vid.srcObject=null}
+async function startStream(){
+  stopStream();
+  camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:2560},height:{ideal:1440}},audio:false});
+  vid.srcObject=camStream;await vid.play();
+}
+async function openCamera(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){toast('Live camera isn’t available here, so I’ll use the photo picker');$('#camIn').click();return}
+  try{await startStream();camMode=true;shots=0;$('#shots').textContent='Line up the page, then tap the shutter';show('camera')}
+  catch(e){camMode=false;stopStream();toast('Camera access was blocked, so I’ll use the photo picker');$('#camIn').click()}
+}
+function closeCamera(){camMode=false;stopStream();cur=null;queue=[];show('home')}
+$('#shutter').onclick=()=>{
+  if(!vid.videoWidth)return;
+  const s=Math.min(1,2200/Math.max(vid.videoWidth,vid.videoHeight)),c=mk(Math.round(vid.videoWidth*s),Math.round(vid.videoHeight*s));
+  c.getContext('2d').drawImage(vid,0,0,c.width,c.height);
+  shots++;enqueue([c]);
+};
+$('#flip').onclick=async()=>{
+  facing=facing==='environment'?'user':'environment';
+  try{await startStream()}catch(e){facing=facing==='environment'?'user':'environment';try{await startStream()}catch(_){}toast('Couldn’t switch cameras')}
+};
+$('#camDone').onclick=closeCamera;
+$('#scan').onclick=openCamera;
+$('#imp').onclick=()=>$('#impIn').click();
+$('#pdf').onclick=exportPDF;
+for(const id of ['camIn','impIn'])$('#'+id).onchange=e=>{const f=[...e.target.files];e.target.value='';if(f.length)enqueue(f)};
+renderHome();
+</script>
+</body>
+</html>
